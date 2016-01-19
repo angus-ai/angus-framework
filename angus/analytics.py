@@ -33,6 +33,7 @@ from urllib import urlencode
 from tornado.netutil import Resolver
 
 import angus
+import angus.framework
 import tornado.httpclient as hclient
 
 
