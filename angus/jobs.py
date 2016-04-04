@@ -101,7 +101,7 @@ class JobCollection(tornado.web.RequestHandler):
                                                   new_job_id),
         }
 
-        self.resource_storage[new_job_id] = response
+        self.resource_storage.set(new_job_id, response)
 
         # Two possibility, application/json or multipart/mixed
         content_type = self.request.headers.get('Content-Type')
@@ -206,8 +206,8 @@ class Job(tornado.web.RequestHandler):
 
     @report
     def get(self, uid):
-        if uid in self.resource_storage:
-            response = self.resource_storage[uid]
+        response = self.resource_storage.get(uid)
+        if response is not None:
             self.write(json.dumps(response))
             self.set_status(200)
         else:
