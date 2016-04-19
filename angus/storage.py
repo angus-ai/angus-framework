@@ -23,6 +23,14 @@
 import collections
 import memcache
 
+__updated__ = "2016-04-19"
+__author__ = "Aurélien Moreau"
+__copyright__ = "Copyright 2015-2016, Angus.ai"
+__credits__ = ["Aurélien Moreau", "Gwennael Gate"]
+__license__ = "Apache v2.0"
+__maintainer__ = "Aurélien Moreau"
+__status__ = "Production"
+
 
 class ResourceStorage(object):
 
@@ -45,7 +53,7 @@ class MemoryStorage(dict):
         self[key] = (value, ts, owner, mode)
 
     def get(self, key, auth=None):
-        result = self.get(key)
+        result = super(MemoryStorage, self).get(key)
         if result is not None and auth == result[2]:
             return result[0]
         else:
