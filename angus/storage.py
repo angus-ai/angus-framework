@@ -20,10 +20,15 @@
 """ Resource storage
 """
 
+import logging
 import collections
 import memcache
+import boto3
+import json
+import threading
+import Queue
 
-__updated__ = "2016-04-19"
+__updated__ = "2016-10-05"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennael Gate"]
@@ -31,6 +36,7 @@ __license__ = "Apache v2.0"
 __maintainer__ = "Aurélien Moreau"
 __status__ = "Production"
 
+LOGGER = logging.getLogger(__name__)
 
 class ResourceStorage(object):
 
@@ -40,25 +46,35 @@ class ResourceStorage(object):
     def get(self, key, auth=None):
         raise Exception("Not implemented")
 
-    def set(self, key, value, owner=None, mode=None, ts=None):
+    def safe_get(self, key):
         raise Exception("Not implemented")
 
+    def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
+        raise Exception("Not implemented")
+
+    def flush(self, key):
+        raise Exception("Not implemented")
 
 class MemoryStorage(dict):
 
     def __init__(self):
         super(MemoryStorage, self).__init__(self)
 
-    def set(self, key, value, owner=None, mode=None, ts=None):
-        self[key] = (value, ts, owner, mode)
+    def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
+        self[key] = (value, ts, owner, mode, ttl)
 
     def get(self, key, auth=None):
-        result = super(MemoryStorage, self).get(key)
+        result = safe_get(key)
         if result is not None and auth == result[2]:
             return result[0]
         else:
             return None
 
+    def safe_get(self, key):
+        return super(MemoryStorage, self).get(key)
+
+    def flush(self, key):
+        return
 
 class LimitedMemoryStorage(ResourceStorage):
     """ Storage class for blobs
@@ -68,17 +84,20 @@ class LimitedMemoryStorage(ResourceStorage):
         self.max_size = max_size
         self.inner = collections.OrderedDict()
 
-    def set(self, key, value, owner=None, mode=None, ts=None):
+    def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
         """ Store a new blob
         """
-        self.inner[key] = (value, ts, owner, mode)
+        self.inner[key] = (value, ts, owner, mode, ttl)
         if len(self.inner) > self.max_size:
             self.inner.popitem(last=False)
+
+    def safe_get(self, key):
+        return self.inner.get(key)
 
     def get(self, key, auth=None):
         """ Get back a blob
         """
-        result = self.inner.get(key)
+        result = self.safe_get(key)
         if result is not None and auth == result[2]:
             return result[0]
         else:
@@ -89,18 +108,129 @@ class LimitedMemoryStorage(ResourceStorage):
         """
         return self.inner.iteritems()
 
+    def flush(self, key):
+        return
 
 class MemcacheStorage(ResourceStorage):
 
     def __init__(self, servers=["127.0.0.1"]):
         self.client = memcache.Client(servers)
 
-    def set(self, key, value, owner=None, mode=None, ts=None):
-        self.client.set(key, (value, ts, owner, mode))
+    def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
+        self.client.set(key, (value, ts, owner, mode, ttl))
+
+    def safe_get(self, key):
+        return self.client.get(key)
 
     def get(self, key, auth=None):
-        result = self.client.get(key)
+        result = self.safe_get(key)
         if result is not None and auth == result[2]:
             return result[0]
         else:
             return None
+
+    def flush(self, key):
+        return
+
+class S3Putter(threading.Thread):
+    def __init__(self, bucket_name=None,
+                 access_key_id=None,
+                 region_name=None,
+                 secret_access_key=None,
+                 input_queue=None):
+        super(S3Putter, self).__init__()
+        self.input_queue = input_queue
+        self.access_key_id = access_key_id
+        self.region_name = region_name
+        self.secret_access_key= secret_access_key
+        self.bucket_name = bucket_name
+
+    def run(self):
+        session = boto3.session.Session(aws_access_key_id=self.access_key_id,
+                                       aws_secret_access_key=self.secret_access_key,
+                                       region_name=self.region_name)
+        s3 = session.resource('s3')
+        bucket = s3.Bucket(self.bucket_name)
+        while True:
+            LOGGER.info(self.input_queue.qsize())
+            key, body, metadata = self.input_queue.get()
+            bucket.put_object(Key=key, Body=body, Metadata=metadata)
+
+
+class S3Storage(ResourceStorage):
+
+    def __init__(self, bucket_name=None,
+                 access_key_id=None,
+                 region_name=None,
+                 secret_access_key=None):
+
+        session = boto3.session.Session(aws_access_key_id=access_key_id,
+                                       aws_secret_access_key=secret_access_key,
+                                       region_name=region_name)
+        s3 = session.resource('s3')
+        self.bucket = s3.Bucket(bucket_name)
+        self.queue = Queue.Queue()
+        self.putter = S3Putter(bucket_name, access_key_id, region_name, secret_access_key, self.queue)
+        self.putter.start()
+
+    def set(self, key, value, owner="", mode="", ts=None, ttl=None):
+        if mode is None:
+            mode = ""
+        metadata = {
+            'owner':owner,
+            'mode':mode,
+            'ts': ts.isoformat(),
+            'ttl': str(ttl)
+        }
+        self.queue.put((key, json.dumps(value), metadata))
+
+    def safe_get(self, key):
+        return self.bucket.Object(key)
+
+    def get(self, key, auth=None):
+        obj = self.safe_get(self)
+        if obj.metadata.auth == auth:
+            buff = StringIO.StringIO()
+            obj.download_fileobj(buff)
+            return json.loads(buff.getvalue())
+        else:
+            return None
+
+    def flush(self, key):
+        return
+
+class CompleteStorage(object):
+
+    def __init__(self,
+                 bucket_name,
+                 region_name,
+                 access_key_id,
+                 secret_access_key,
+                 max_size=10):
+        self.mem = LimitedMemoryStorage(max_size=max_size)
+        self.shared = MemcacheStorage()
+        self.s3 = S3Storage(bucket_name=bucket_name,
+                            region_name=region_name,
+                            access_key_id=access_key_id,
+                            secret_access_key=secret_access_key)
+
+    def get(self, key, auth=None):
+        resource = self.mem.get(key, auth=auth)
+        if resource is None:
+            resource = self.shared.get(key, auth=auth)
+
+        if resource is None:
+            resource = self.s3.get(key, auth=auth)
+
+        return resource
+
+    def set(self, *args, **kwargs):
+        self.mem.set(*args, **kwargs)
+
+    def flush(self, key):
+        obj = self.mem.safe_get(key)
+        ttl = obj[4]
+        if ttl >= 0:
+            self.shared.set(key, obj[0], owner=obj[2], mode=obj[3], ts=obj[1], ttl=obj[4])
+        if ttl > 0:
+            self.s3.set(key, obj[0], owner=obj[2], mode=obj[3], ts=obj[1], ttl=obj[4])

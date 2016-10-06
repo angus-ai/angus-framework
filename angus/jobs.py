@@ -27,13 +27,18 @@ import json
 import os
 import urlparse
 import uuid
+import datetime
+import pytz
+import logging
 
 import tornado.gen
 import tornado.httpclient
 import tornado.web
 
 from angus.analytics import report
+import angus.framework
 
+LOGGER = logging.getLogger(__name__)
 
 class Resource(object):
     """ A could be a local path, an url, or a binary content
@@ -43,6 +48,7 @@ class Resource(object):
         self._path = path
         self.url = url
         self.content = content
+        self.uuid = uuid.uuid4()
 
     @property
     def path(self):
@@ -57,7 +63,7 @@ class Resource(object):
         """ Resolve the resource
         """
         if self._path is None:
-            self._path = "/tmp/%s" % (uuid.uuid4())
+            self._path = "/tmp/%s" % (self.uuid)
             if self.content is None:
                 assert self.url is not None
                 client = tornado.httpclient.AsyncHTTPClient()
@@ -99,9 +105,8 @@ class JobCollection(tornado.web.RequestHandler):
                                                   self.service_key,
                                                   self.service_version,
                                                   new_job_id),
+            'uuid': new_job_id,
         }
-
-        self.resource_storage.set(new_job_id, response)
 
         # Two possibility, application/json or multipart/mixed
         content_type = self.request.headers.get('Content-Type')
@@ -114,16 +119,28 @@ class JobCollection(tornado.web.RequestHandler):
         else:
             raise Exception("Unknown content-type: %s" % (content_type))
 
-        # By default a request is asynchronous
+        async = data.get('async', True)
+        # ttl -1: in-memory, 0: memcache, >0: s3
+        ttl = data.get('ttl', -1) # -1 only in-memory
+        if ttl <= 0 and async:
+            ttl = 0 # memcache
 
-        if 'async' in data and not data['async']:
-            status = 201
-            yield self._compute_result(response, data)
-            reason = "New job was finished."
-        else:
+        # Save the resource
+        self.resource_storage.set(new_job_id, response,
+                                  ttl=ttl,
+                                  ts=datetime.datetime.now(pytz.utc),
+                                  owner=angus.framework.extract_user(self)
+        )
+
+        # By default a request is asynchronous
+        if async:
             status = 202
             self._compute_result(response, data)
             reason = "New job was accepted, keep in touch."
+        else:
+            status = 201
+            yield self._compute_result(response, data)
+            reason = "New job was finished."
 
         response['status'] = status
         self.set_status(status, reason)
@@ -194,6 +211,8 @@ class JobCollection(tornado.web.RequestHandler):
         yield self.resolve(data, auth)
         yield self.compute(resource, data)
         resource['status'] = 201
+        self.resource_storage.flush(resource['uuid'])
+
 
 
 class Job(tornado.web.RequestHandler):
