@@ -30,6 +30,7 @@ import tornado.web
 from angus.analytics import report
 import angus.jobs
 import angus.quota
+import angus.streams
 
 class Description(tornado.web.RequestHandler):
     """ Every services have a description endpoint.
@@ -71,6 +72,8 @@ class Service(tornado.web.Application):
 
         self.port = port
 
+        self.queues = dict() # TODO: use celery
+
         @tornado.gen.coroutine
         def comp_thread(resource, data,
                         executor=concurrent.futures.ThreadPoolExecutor(threads)):
@@ -96,15 +99,20 @@ class Service(tornado.web.Application):
             'version': version,
             'description': description,
             'quota': self.recorder,
+            'streams': self.queues,
         }
 
+        basename = "/services/{}/{}".format(service_key, version)
+
         super(Service, self).__init__([
-            (r"/services/%s/%s/jobs" %
-             (service_key, version), angus.jobs.JobCollection, conf),
-            (r"/services/%s/%s/jobs/(.*)" %
-             (service_key, version), angus.jobs.Job, conf),
-            (r"/services/%s/%s" % (service_key,
-                                   version), Description, conf),
+            (r"{}/jobs/(.*)".format(basename), angus.jobs.Job, conf),
+            (r"{}/jobs".format(basename), angus.jobs.JobCollection, conf),
+            (r"{}/streams/(.*)/input".format(basename), angus.streams.Input, conf),
+            (r"{}/streams/(.*)/output".format(basename), angus.streams.Output, conf),
+            (r"{}/streams/(.*)".format(basename), angus.streams.Stream, conf),
+            (r"{}/streams".format(basename), angus.streams.Streams, conf),
+            (r"{}".format(basename), Description, conf),
+
         ])
 
     def start(self):

@@ -81,7 +81,6 @@ class Resource(object):
     def __del__(self):
         os.remove(self._path)
 
-
 class JobCollection(tornado.web.RequestHandler):
     """ JobCollection is a set of job, it enables creation of
     new job and resolve resource before run it.
@@ -222,7 +221,6 @@ class Job(tornado.web.RequestHandler):
     """ A job is a running algorithm with an unique ID.
     This handler return results
     """
-
     def initialize(self, *args, **kwargs):
         self.resource_storage = kwargs.pop('resource_storage')
 
