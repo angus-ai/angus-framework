@@ -29,7 +29,7 @@ import threading
 import Queue
 import StringIO
 
-__updated__ = "2016-12-15"
+__updated__ = "2016-12-20"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennael Gate"]

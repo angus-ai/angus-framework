@@ -92,11 +92,13 @@ class JobCollection(tornado.web.RequestHandler):
         self.service_version = kwargs.pop('version')
         self.resource_storage = kwargs.pop('resource_storage')
         self.compute = kwargs.pop('compute')
+        self.quota = kwargs.pop('quota')
 
     @tornado.gen.coroutine
     @report
     def post(self):
         new_job_id = unicode(uuid.uuid1())
+        self.client_id = angus.framework.extract_user(self)
 
         public_url = "%s://%s" % (self.request.protocol, self.request.host)
 
@@ -129,7 +131,7 @@ class JobCollection(tornado.web.RequestHandler):
         self.resource_storage.set(new_job_id, response,
                                   ttl=ttl,
                                   ts=datetime.datetime.now(pytz.utc),
-                                  owner=angus.framework.extract_user(self)
+                                  owner=self.client_id,
         )
 
         # By default a request is asynchronous
@@ -211,6 +213,7 @@ class JobCollection(tornado.web.RequestHandler):
         auth = self.request.headers.get('Authorization', None)
         yield self.resolve(data, auth)
         yield self.compute(resource, data)
+        self.quota.inc(self.client_id, self.service_key, 1)
         resource['status'] = 201
         self.resource_storage.update(resource['uuid'], resource)
         self.resource_storage.flush(resource['uuid'])
