@@ -79,7 +79,8 @@ class Resource(object):
                 tmp_file.write(self.content)
 
     def __del__(self):
-        os.remove(self._path)
+        if self._path is not None:
+            os.remove(self._path)
 
 class JobCollection(tornado.web.RequestHandler):
     """ JobCollection is a set of job, it enables creation of
