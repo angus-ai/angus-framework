@@ -133,6 +133,7 @@ class Output(tornado.web.RequestHandler):
 
     def initialize(self, *args, **kwargs):
         self.streams = kwargs.pop('streams')
+        self.up = True
 
     @tornado.gen.coroutine
     def get(self, uid):
@@ -142,7 +143,7 @@ class Output(tornado.web.RequestHandler):
             self.finish()
             return
 
-        while True:
+        while self.up:
             response = yield decoder.queue.get()
             if response is None:
                 self.finish("\r\n")
@@ -150,6 +151,9 @@ class Output(tornado.web.RequestHandler):
             self.write(response)
             self.write("\r\n")
             yield self.flush()
+
+    def on_connection_close(self):
+        self.up = False
 
 @tornado.web.stream_request_body
 class Input(tornado.web.RequestHandler):
