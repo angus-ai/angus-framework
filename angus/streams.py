@@ -48,6 +48,7 @@ class Decoder(object):
         self.to_read = 0
         self.finish = False
 
+    @tornado.gen.coroutine
     def _wait_header(self):
         finish = self.data.find("--{}--".format(self.boundary))
         if finish!=-1:
@@ -62,20 +63,21 @@ class Decoder(object):
             self.data = self.data[end+6:]
             self.to_read = int(content_length)
             if len(self.data) > self.to_read:
-                self.read_part()
+                self._read_part()
 
+    @tornado.gen.coroutine
     def _read_part(self):
         jpg = self.data[:self.to_read]
         self.data=self.data[self.to_read+1:]
         resource = dict()
         complete_data = self.conf.copy()
         complete_data['image'] = jobs.Resource(content=jpg)
-        self.compute(resource, complete_data)
+        yield self.compute(resource, complete_data)
         self.queue.put(resource)
         self.to_read = 0
 
+    @tornado.gen.coroutine
     def __call__(self, chunk):
-        LOGGER.info(".")
         self.data = self.data + chunk
         if self.to_read == 0:
             self._wait_header()
@@ -148,8 +150,14 @@ class Output(tornado.web.RequestHandler):
             if response is None:
                 self.finish("\r\n")
                 break
+            response = json.dumps(response)
+            response = "\r\n".join(("--myboundary",
+                                "Content-Type: application/json",
+                                "Content-Length: " + str(len(response)),
+                                "\r\n",
+                                response,
+                                ""))
             self.write(response)
-            self.write("\r\n")
             yield self.flush()
 
     def on_connection_close(self):
