@@ -29,17 +29,15 @@ __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennaël Gâté"]
 __status__ = "Production"
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 setup(name='angus-framework',
-      version="0.0.4",
+      version="0.0.5",
       description='Angus Cloud Framework',
       author=__author__,
       author_email='aurelien.moreau@angus.ai',
       url='http://www.angus.ai/',
-      install_requires=[
-          "tornado",
-          "futures",
-          "python-memcached",
-          "pytz",
-      ],
+      install_requires=requirements,
       packages=find_packages(),
       )
