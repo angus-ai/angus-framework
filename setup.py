@@ -22,6 +22,7 @@
 """
 
 from setuptools import setup, find_packages
+import os
 
 __updated__ = "2016-12-09"
 __author__ = "Aurélien Moreau"
@@ -29,7 +30,8 @@ __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennaël Gâté"]
 __status__ = "Production"
 
-with open('requirements.txt') as f:
+with open(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                       "requirements.txt")) as f:
     requirements = f.read().splitlines()
 
 setup(name='angus-framework',
