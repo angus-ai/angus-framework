@@ -35,7 +35,7 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)),
     requirements = f.read().splitlines()
 
 setup(name='angus-framework',
-      version="0.0.5",
+      version="0.0.6",
       description='Angus Cloud Framework',
       author=__author__,
       author_email='aurelien.moreau@angus.ai',
