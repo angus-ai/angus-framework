@@ -225,7 +225,8 @@ class Job(tornado.web.RequestHandler):
 
     @report
     def get(self, uid):
-        response = self.resource_storage.get(uid)
+        user = angus.framework.extract_user(self)
+        response = self.resource_storage.get(uid, user)
         if response is not None:
             self.write(json.dumps(response))
             self.set_status(200)
