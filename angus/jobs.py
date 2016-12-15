@@ -211,6 +211,7 @@ class JobCollection(tornado.web.RequestHandler):
         yield self.resolve(data, auth)
         yield self.compute(resource, data)
         resource['status'] = 201
+        self.resource_storage.update(resource['uuid'], resource)
         self.resource_storage.flush(resource['uuid'])
 
 

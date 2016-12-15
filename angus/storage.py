@@ -53,6 +53,9 @@ class ResourceStorage(object):
     def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
         raise Exception("Not implemented")
 
+    def update(self, key, value):
+        raise Exception("Not implemented")
+
     def flush(self, key):
         raise Exception("Not implemented")
 
@@ -63,6 +66,11 @@ class MemoryStorage(dict):
 
     def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
         self[key] = (value, ts, owner, mode, ttl)
+
+    def update(self, key, value):
+        if key in self:
+            _, ts, owner, mode, ttl = self[key]
+            self.set(key, value, owner, mode, ts, ttl)
 
     def get(self, key, auth=None):
         result = self.safe_get(key)
@@ -92,6 +100,11 @@ class LimitedMemoryStorage(ResourceStorage):
         if len(self.inner) > self.max_size:
             self.inner.popitem(last=False)
 
+    def update(self, key, value):
+        if key in self.inner:
+            _, ts, owner, mode, ttl = self.inner[key]
+            self.set(key, value, owner, mode, ts, ttl)
+
     def safe_get(self, key):
         return self.inner.get(key)
 
@@ -119,6 +132,10 @@ class MemcacheStorage(ResourceStorage):
 
     def set(self, key, value, owner=None, mode=None, ts=None, ttl=None):
         self.client.set(key, (value, ts, owner, mode, ttl))
+
+    def update(self, key, value):
+        _, ts, owner, mode, ttl = self.client.get(key)
+        self.set(key, value, owner, mode, ts, ttl)
 
     def safe_get(self, key):
         return self.client.get(key)
@@ -185,6 +202,10 @@ class S3Storage(ResourceStorage):
         }
         self.queue.put((key, json.dumps(value), metadata))
 
+    def update(self, key, value):
+        o = self.safe_get(key)
+        self.set(key, value, o.metadata.owner, o.metadata.mode, o.metadata.ts, o.metedata.ttl)
+
     def safe_get(self, key):
         return self.bucket.Object(key)
 
@@ -227,6 +248,9 @@ class CompleteStorage(object):
 
     def set(self, *args, **kwargs):
         self.mem.set(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        self.mem.update(*args, **kwargs)
 
     def flush(self, key):
         obj = self.mem.safe_get(key)
