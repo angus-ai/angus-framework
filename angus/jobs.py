@@ -135,14 +135,15 @@ class JobCollection(tornado.web.RequestHandler):
         # By default a request is asynchronous
         if async:
             status = 202
+            response['status'] = status
             self._compute_result(response, data)
             reason = "New job was accepted, keep in touch."
         else:
             status = 201
+            response['status'] = status
             yield self._compute_result(response, data)
             reason = "New job was finished."
 
-        response['status'] = status
         self.set_status(status, reason)
         self.write(json.dumps(response))
 
@@ -213,8 +214,6 @@ class JobCollection(tornado.web.RequestHandler):
         resource['status'] = 201
         self.resource_storage.update(resource['uuid'], resource)
         self.resource_storage.flush(resource['uuid'])
-
-
 
 class Job(tornado.web.RequestHandler):
     """ A job is a running algorithm with an unique ID.
