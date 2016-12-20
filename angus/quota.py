@@ -22,10 +22,11 @@
 
 from cassandra.cluster import Cluster, NoHostAvailable
 import logging
+import os
 import datetime
 import pytz
 
-__updated__ = "2016-12-07"
+__updated__ = "2016-12-20"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennael Gate"]
@@ -37,6 +38,14 @@ LOGGER = logging.getLogger(__name__)
 
 class CassandraRecorder(object):
     def __init__(self, *args, **kwargs):
+
+        contact_point = os.environ.get('CASSANDRA_CONTACT_POINT', None)
+        if contact_point is None:
+            LOGGER.warning("No CASSANDRA_CONTACT_POINT environment variable set.")
+
+        if ('contact_points' not in kwargs) and (contact_point is not None):
+            kwargs['contact_points'] = [contact_point]
+
         self.cluster = Cluster(*args, **kwargs)
 
         try:
@@ -62,10 +71,11 @@ class CassandraRecorder(object):
 
     def inc(self, client_id, service, quantity):
         if self.session is None:
-            LOGGER.warning("No quota backend")
+            LOGGER.warning("No quota backend.")
             return
         timestamp = datetime.datetime.now(pytz.utc)
         day = timestamp.toordinal()
+
         self.session.execute("""
         UPDATE api_quota.quantities SET quantity = quantity + %s
         WHERE client_id = %s AND service = %s AND day = %s;
