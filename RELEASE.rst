@@ -2,18 +2,23 @@
 Angus Service Framework
 =======================
 
-Release Note 0.0.1
-==================
+Release Note 0.0.10
++++++++++++++++++++
 
 Features added
 --------------
 
-* Angus.ai service framework library for python.
-* Resource, Jobs, JobCollection, Service: building blocks for create
-  some IA web services in a RESTful style.
+* Streaming interface (MJPEG)
+
+Bug fixes
+---------
+
+* Test file exists before remove it in resources object.
+* Fix RELEASE.rst
+
 
 Release Note 0.0.9
-==================
+++++++++++++++++++
 
 Features added
 --------------
@@ -24,3 +29,14 @@ Bug fixes
 ---------
 
 * Server Async call request result fix.
+
+
+Release Note 0.0.1
+++++++++++++++++++
+
+Features added
+--------------
+
+* Angus.ai service framework library for python.
+* Resource, Jobs, JobCollection, Service: building blocks for create
+  some IA web services in a RESTful style.
