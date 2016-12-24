@@ -2,6 +2,15 @@
 Angus Service Framework
 =======================
 
+Release Note 0.0.11
++++++++++++++++++++
+
+Bug fixes
+---------
+
+* Fix lag in service due to quota backend service.
+
+
 Release Note 0.0.10
 +++++++++++++++++++
 

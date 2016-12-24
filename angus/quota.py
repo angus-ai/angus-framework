@@ -21,6 +21,9 @@
 """
 
 from cassandra.cluster import Cluster, NoHostAvailable
+from cassandra.policies import ConstantReconnectionPolicy
+from cassandra.query import BatchStatement, BatchType
+
 import logging
 import os
 import datetime
@@ -37,46 +40,79 @@ __status__ = "Production"
 LOGGER = logging.getLogger(__name__)
 
 class CassandraRecorder(object):
-    def __init__(self, *args, **kwargs):
+    BATCH_SIZE = 100
 
-        contact_point = os.environ.get('CASSANDRA_CONTACT_POINT', None)
-        if contact_point is None:
+    def __init__(self):
+        self._reset()
+        self.contact_point = os.environ.get('CASSANDRA_CONTACT_POINT', None)
+        if self.contact_point is None:
             LOGGER.warning("No CASSANDRA_CONTACT_POINT environment variable set.")
+        self._connect()
 
-        if ('contact_points' not in kwargs) and (contact_point is not None):
-            kwargs['contact_points'] = [contact_point]
+    def _connect(self):
+        if self.session is None:
+            try:
+                self.cluster = Cluster(reconnection_policy=ConstantReconnectionPolicy(60, None))
+                self.session = self.cluster.connect()
 
-        self.cluster = Cluster(*args, **kwargs)
+                self.session.execute("""
+                CREATE KEYSPACE IF NOT EXISTS api_quota
+                WITH replication = {'class': 'SimpleStrategy', 'replication_factor':1};
+                """)
 
-        try:
-            self.session = self.cluster.connect()
-        except NoHostAvailable:
-            self.session = None
-            return
+                self.session.set_keyspace('api_quota')
 
-        self.session.execute("""
-        CREATE KEYSPACE IF NOT EXISTS api_quota
-        WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2};
-        """)
-        self.session.set_keyspace('api_quota')
-        self.session.execute("""
-        CREATE TABLE IF NOT EXISTS api_quota.quantities (
-        client_id text,
-        day int,
-        service text,
-        quantity counter,
-        PRIMARY KEY ((client_id, day), service)
-        );
-        """)
+                self.session.execute("""
+                CREATE TABLE IF NOT EXISTS api_quota.quantities (
+                client_id text,
+                day int,
+                service text,
+                quantity counter,
+                PRIMARY KEY ((client_id, day), service)
+                );
+                """)
+
+                self.prepared = self.session.prepare("""
+                UPDATE api_quota.quantities SET quantity = quantity + ?
+                WHERE client_id = ? AND service = ? AND day = ?;
+                """)
+            except NoHostAvailable:
+                self._reset()
+
+    def _reset(self):
+        self.session = None
+        self.batch = None
+        self.prepared = None
+        self.queue = 0
+
+    def _delay(self, statement):
+        if self.batch is None:
+            self.batch = BatchStatement(batch_type=BatchType.COUNTER)
+
+        self.batch.add(statement)
+        self.queue += 1
+
+        if self.queue >= self.BATCH_SIZE:
+            try:
+                LOGGER.debug("Flush quota buffer")
+                self.session.execute_async(self.batch)
+                self.queue = 0
+                self.batch.clear()
+            except NoHostAvailable:
+                self.reset()
 
     def inc(self, client_id, service, quantity):
+        self._connect()
         if self.session is None:
             LOGGER.warning("No quota backend.")
             return
+
         timestamp = datetime.datetime.now(pytz.utc)
         day = timestamp.toordinal()
 
-        self.session.execute("""
-        UPDATE api_quota.quantities SET quantity = quantity + %s
-        WHERE client_id = %s AND service = %s AND day = %s;
-        """, (quantity, client_id, service, day))
+        try:
+            bound = self.prepared.bind((quantity, client_id, service, day))
+            LOGGER.debug("Inc client_id={}".format(client_id))
+            self._delay(bound)
+        except NoHostAvailable:
+            self._reset()
