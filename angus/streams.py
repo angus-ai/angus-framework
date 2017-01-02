@@ -36,6 +36,8 @@ import jobs
 
 LOGGER = logging.getLogger(__name__)
 
+MARK_END = "\r\n"
+
 class Decoder(object):
     def __init__(self, uid, conf, queue, compute):
         self.data = ""
@@ -45,44 +47,42 @@ class Decoder(object):
         self.compute = compute
         self.conf = conf
         self.boundary = "boundary"
-        self.to_read = 0
-        self.finish = False
 
     @tornado.gen.coroutine
     def _wait_header(self):
         finish = self.data.find("--{}--".format(self.boundary))
-        if finish!=-1:
-            self.finish = True
-            self.queue.put(None)
+        if finish == 0:
+            yield self.queue.put(None)
+            return
 
         start = self.data.find("--{}\r\n".format(self.boundary))
-        end = self.data.find("\r\n\r\n", start)
+        end = self.data.find(MARK_END+MARK_END, start)
         if start!=-1 and end!=-1:
-            header = self.data[start:end+4]
+            header = self.data[start:end+len(MARK_END+MARK_END)]
             content_length = re.search(r'Content-Length: (\w+)\r\n', header).group(1)
-            self.data = self.data[end+6:]
-            self.to_read = int(content_length)
-            if len(self.data) > self.to_read:
-                self._read_part()
+            buff = self.data[end+len(MARK_END+MARK_END):]
+            to_read =  int(content_length)
+            if len(self.data) > to_read:
+                self.data = buff
+                yield self._read_part(to_read)
+                yield self._wait_header()
 
     @tornado.gen.coroutine
-    def _read_part(self):
-        jpg = self.data[:self.to_read]
-        self.data=self.data[self.to_read+1:]
+    def _read_part(self, to_read):
+        jpg = self.data[:to_read]
+        self.data=self.data[to_read+len(MARK_END):]
         resource = dict()
         complete_data = self.conf.copy()
         complete_data['image'] = jobs.Resource(content=jpg)
         yield self.compute(resource, complete_data)
-        self.queue.put(resource)
-        self.to_read = 0
+        yield self.queue.put(resource)
 
     @tornado.gen.coroutine
     def __call__(self, chunk):
         self.data = self.data + chunk
-        if self.to_read == 0:
-            self._wait_header()
-        elif len(self.data) > self.to_read:
-            self._read_part()
+        yield self._wait_header()
+
+
 
 class Streams(tornado.web.RequestHandler):
     def initialize(self, *args, **kwargs):
@@ -148,13 +148,13 @@ class Output(tornado.web.RequestHandler):
         while self.up:
             response = yield decoder.queue.get()
             if response is None:
-                self.finish("\r\n")
+                self.finish("--myboundary--")
                 break
             response = json.dumps(response)
             response = "\r\n".join(("--myboundary",
                                 "Content-Type: application/json",
                                 "Content-Length: " + str(len(response)),
-                                "\r\n",
+                                "",
                                 response,
                                 ""))
             self.write(response)
@@ -177,9 +177,10 @@ class Input(tornado.web.RequestHandler):
         self.decoder = self.streams.get(self.uid, None)
         self.decoder.boundary = boundary
 
+    @tornado.gen.coroutine
     def data_received(self, data):
         if self.decoder:
-            self.decoder(data)
+            yield self.decoder(data)
 
     def post(self, uid):
         self.delete()
