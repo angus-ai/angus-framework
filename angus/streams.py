@@ -59,21 +59,41 @@ class Decoder(object):
         end = self.data.find(MARK_END+MARK_END, start)
         if start!=-1 and end!=-1:
             header = self.data[start:end+len(MARK_END+MARK_END)]
-            content_length = re.search(r'Content-Length: (\w+)\r\n', header).group(1)
+
+            content_length = re.search(r'Content-Length: (.+)\r\n', header)
+            if content_length is not None:
+                content_length = int(content_length.group(1))
+            else:
+                content_length = 0
+
+            field = re.search(r'X-Angus-DataField: (.+)\r\n', header)
+            if field is not None:
+                field = field.group(1)
+            else:
+                field = 'image'
+
+            parameters = re.search(r'X-Angus-Parameters: (.+)\r\n', header)
+            LOGGER.debug(header)
+            if parameters is not None:
+                parameters = json.loads(parameters.group(1))
+            else:
+                parameters = dict()
+
             buff = self.data[end+len(MARK_END+MARK_END):]
-            to_read =  int(content_length)
-            if len(self.data) > to_read:
+
+            if len(self.data) > content_length:
                 self.data = buff
-                yield self._read_part(to_read)
+                yield self._read_part(content_length, field, parameters)
                 yield self._wait_header()
 
     @tornado.gen.coroutine
-    def _read_part(self, to_read):
+    def _read_part(self, to_read, field, parameters):
         jpg = self.data[:to_read]
         self.data=self.data[to_read+len(MARK_END):]
         resource = dict()
         complete_data = self.conf.copy()
-        complete_data['image'] = jobs.Resource(content=jpg)
+        complete_data.update(parameters)
+        complete_data[field] = jobs.Resource(content=jpg)
         yield self.compute(resource, complete_data)
         yield self.queue.put(resource)
 
