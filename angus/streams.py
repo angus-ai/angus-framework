@@ -268,3 +268,9 @@ class Input(tornado.web.RequestHandler):
         """
         if self.decoder:
             yield self.decoder(data)
+
+    @tornado.gen.coroutine
+    def post(self, uid):
+        """Finalize this stream.
+        """
+        pass
