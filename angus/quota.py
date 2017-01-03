@@ -55,7 +55,13 @@ class CassandraRecorder(object):
     def _connect(self):
         if self.session is None:
             try:
-                self.cluster = Cluster(reconnection_policy=ConstantReconnectionPolicy(60, None))
+                if self.contact_point is None:
+                    contact_points = ['127.0.0.1']
+                else:
+                    contact_points = [self.contact_point]
+
+                self.cluster = Cluster(contact_points,
+                                       reconnection_policy=ConstantReconnectionPolicy(60, None))
                 self.session = self.cluster.connect()
 
                 self.session.execute("""
