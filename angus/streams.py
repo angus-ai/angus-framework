@@ -72,7 +72,6 @@ class Decoder(object):
                 field = 'image'
 
             parameters = re.search(r'X-Angus-Parameters: (.+)\r\n', header)
-            LOGGER.debug(header)
             if parameters is not None:
                 parameters = json.loads(parameters.group(1))
             else:
