@@ -92,8 +92,11 @@ class Decoder(object):
         complete_data = self.conf.copy()
         complete_data.update(parameters)
         complete_data[field] = angus.jobs.Resource(content=jpg)
-        yield self.compute(resource, complete_data)
-        yield self.queue.put(resource)
+        try:
+            yield self.compute(resource, complete_data)
+            yield self.queue.put(resource)
+        except Exception:
+            LOGGER.exception("Frame compute error")
 
     @tornado.gen.coroutine
     def __call__(self, chunk):
