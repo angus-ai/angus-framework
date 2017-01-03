@@ -18,27 +18,26 @@
 # under the License.
 
 import json
-import os
-import urlparse
 import uuid
-import datetime
-import pytz
 import logging
 import re
 
+from tornado.queues import Queue
 import tornado.gen
 import tornado.httpclient
 import tornado.web
-from tornado.queues import Queue
-from angus.analytics import report
-import angus.framework
-import jobs
+
+import angus.jobs
 
 LOGGER = logging.getLogger(__name__)
 
 MARK_END = "\r\n"
 
 class Decoder(object):
+    """Parse a multipart stream, extract binary data and
+    call compute with right parameters.
+    """
+
     def __init__(self, uid, conf, queue, compute):
         self.data = ""
         self.uid = uid
@@ -57,7 +56,7 @@ class Decoder(object):
 
         start = self.data.find("--{}\r\n".format(self.boundary))
         end = self.data.find(MARK_END+MARK_END, start)
-        if start!=-1 and end!=-1:
+        if start != -1 and end != -1:
             header = self.data[start:end+len(MARK_END+MARK_END)]
 
             content_length = re.search(r'Content-Length: (.+)\r\n', header)
@@ -89,11 +88,11 @@ class Decoder(object):
     @tornado.gen.coroutine
     def _read_part(self, to_read, field, parameters):
         jpg = self.data[:to_read]
-        self.data=self.data[to_read+len(MARK_END):]
+        self.data = self.data[to_read+len(MARK_END):]
         resource = dict()
         complete_data = self.conf.copy()
         complete_data.update(parameters)
-        complete_data[field] = jobs.Resource(content=jpg)
+        complete_data[field] = angus.jobs.Resource(content=jpg)
         yield self.compute(resource, complete_data)
         yield self.queue.put(resource)
 
@@ -105,7 +104,12 @@ class Decoder(object):
 
 
 class Streams(tornado.web.RequestHandler):
+    """Request handler for stream creation.
+    """
+
     def initialize(self, *args, **kwargs):
+        """Initialize the handler.
+        """
         self.service_key = kwargs.pop('service_key')
         self.service_version = kwargs.pop('version')
         self.resource_storage = kwargs.pop('resource_storage')
@@ -113,6 +117,9 @@ class Streams(tornado.web.RequestHandler):
         self.streams = kwargs.pop('streams')
 
     def post(self):
+        """Create a new stream with input and output.
+        """
+
         stream_id = unicode(uuid.uuid1())
 
         public_url = "%s://%s" % (self.request.protocol, self.request.host)
@@ -145,20 +152,65 @@ class Streams(tornado.web.RequestHandler):
         self.finish()
 
 class Stream(tornado.web.RequestHandler):
+    """Handler on a stream
+    """
+
     def initialize(self, *args, **kwargs):
-        pass
+        """Initialize the handler.
+        """
+        self.service_key = kwargs.pop('service_key')
+        self.service_version = kwargs.pop('version')
+        self.streams = kwargs.pop('streams')
 
     def get(self, uid):
-        self.write("ok")
+        """Get a description of the stream.
+        """
+        decoder = self.streams.get(uid, None)
+        if decoder is None:
+            self.set_status(404)
+            self.finish()
+            return
+
+        public_url = "%s://%s" % (self.request.protocol, self.request.host)
+
+        service_url = "{}/services/{}/{}".format(public_url,
+                                                 self.service_key,
+                                                 self.service_version)
+        response = {
+            'url': "{}/streams/{}".format(service_url, uid),
+            'uuid': uid,
+            'input': "{}/streams/{}/input".format(service_url, uid),
+            'output': "{}/streams/{}/output".format(service_url, uid),
+        }
+
+        self.write(response)
+
+        self.finish()
+
+    def delete(self, uid):
+        """Remove a stream.
+        """
+        decoder = self.streams.get(uid, None)
+        if decoder is None:
+            self.set_status(404)
+            self.finish()
+            return
+        del self.streams[uid]
 
 class Output(tornado.web.RequestHandler):
+    """Produce results as a multipart stream.
+    """
 
     def initialize(self, *args, **kwargs):
+        """Initialize the handler.
+        """
         self.streams = kwargs.pop('streams')
         self.up = True
 
     @tornado.gen.coroutine
     def get(self, uid):
+        """Stream output results.
+        """
         decoder = self.streams.get(uid, None)
         if decoder is None:
             self.set_status(404)
@@ -172,32 +224,48 @@ class Output(tornado.web.RequestHandler):
                 break
             response = json.dumps(response)
             response = "\r\n".join(("--myboundary",
-                                "Content-Type: application/json",
-                                "Content-Length: " + str(len(response)),
-                                "",
-                                response,
-                                ""))
+                                    "Content-Type: application/json",
+                                    "Content-Length: " + str(len(response)),
+                                    "",
+                                    response,
+                                    ""))
             self.write(response)
             yield self.flush()
 
     def on_connection_close(self):
+        """Exit when connection close.
+        """
         self.up = False
 
 @tornado.web.stream_request_body
 class Input(tornado.web.RequestHandler):
+    """Input stream, receive a multipart stream.
+    """
 
     def initialize(self, *args, **kwargs):
+        """Initialize the handler.
+        """
         self.streams = kwargs.pop('streams')
 
     def prepare(self):
-        self.uid = self.path_args[0]
+        """Read header, extract multipart boundary.
+        """
+        uid = self.path_args[0]
 
         content_type = self.request.headers.get('Content-Type')
-        boundary= re.search(r'boundary=(\w+)', content_type).group(1)
-        self.decoder = self.streams.get(self.uid, None)
+        boundary = re.search(r'boundary=(\w+)', content_type).group(1)
+        self.decoder = self.streams.get(uid, None)
+
+        if self.decoder is None:
+            self.set_status(404)
+            self.finish()
+            return
+
         self.decoder.boundary = boundary
 
     @tornado.gen.coroutine
     def data_received(self, data):
+        """Handler on multipart chunk, must be decode.
+        """
         if self.decoder:
             yield self.decoder(data)
