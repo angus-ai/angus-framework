@@ -181,12 +181,3 @@ class Input(tornado.web.RequestHandler):
     def data_received(self, data):
         if self.decoder:
             yield self.decoder(data)
-
-    def post(self, uid):
-        self.delete()
-
-    def on_connection_close(self):
-        self.delete()
-
-    def delete(self):
-        del self.streams[self.uid]
