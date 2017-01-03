@@ -29,7 +29,7 @@ import os
 import datetime
 import pytz
 
-__updated__ = "2016-12-20"
+__updated__ = "2017-01-03"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2016, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennael Gate"]
@@ -38,6 +38,9 @@ __maintainer__ = "Aurélien Moreau"
 __status__ = "Production"
 
 LOGGER = logging.getLogger(__name__)
+
+CASSANDRA_LOGGING = logging.getLogger("cassandra.connection")
+CASSANDRA_LOGGING.setLevel(logging.INFO)
 
 class CassandraRecorder(object):
     BATCH_SIZE = 100
