@@ -92,7 +92,6 @@ class JobCollection(tornado.web.RequestHandler):
         self.service_version = kwargs.pop('version')
         self.resource_storage = kwargs.pop('resource_storage')
         self.compute = kwargs.pop('compute')
-        self.quota = kwargs.pop('quota')
 
     @tornado.gen.coroutine
     @report
@@ -213,7 +212,6 @@ class JobCollection(tornado.web.RequestHandler):
         auth = self.request.headers.get('Authorization', None)
         yield self.resolve(data, auth)
         yield self.compute(resource, data)
-        self.quota.inc(self.client_id, self.service_key, 1)
         resource['status'] = 201
         self.resource_storage.update(resource['uuid'], resource)
         self.resource_storage.flush(resource['uuid'])

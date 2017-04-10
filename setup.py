@@ -42,7 +42,6 @@ setup(name='angus-framework',
           "python-memcached",
           "pytz",
           "boto3",
-          "cassandra-driver",
       ],
       packages=find_packages(),
       )

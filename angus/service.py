@@ -29,7 +29,6 @@ import tornado.web
 
 from angus.analytics import report
 import angus.jobs
-import angus.quota
 import angus.streams
 
 class Description(tornado.web.RequestHandler):
@@ -66,8 +65,6 @@ class Service(tornado.web.Application):
                  resource_storage=None, threads=4,
                  description="No description"):
 
-        self.recorder = angus.quota.CassandraRecorder()
-
         self.logger = logging.getLogger(service_key)
 
         self.port = port
@@ -98,7 +95,6 @@ class Service(tornado.web.Application):
             'compute': comp,
             'version': version,
             'description': description,
-            'quota': self.recorder,
             'streams': self.queues,
         }
 
