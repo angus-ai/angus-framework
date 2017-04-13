@@ -2,6 +2,15 @@
 Angus Service Framework
 =======================
 
+Release Note 0.0.13
++++++++++++++++++++
+
+Features added
+--------------
+
+* Remove cassandra based quota
+
+
 Release Note 0.0.11
 +++++++++++++++++++
 
