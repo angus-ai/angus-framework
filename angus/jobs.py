@@ -40,6 +40,14 @@ import angus.framework
 
 LOGGER = logging.getLogger(__name__)
 
+class FullEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
 class Resource(object):
     """ A could be a local path, an url, or a binary content
     """
@@ -146,7 +154,24 @@ class JobCollection(tornado.web.RequestHandler):
             reason = "New job was finished."
 
         self.set_status(status, reason)
+        flat_docs = []
+        try:
+            flat_docs = response.pop("flat_docs")
+        except KeyError:
+            pass
+
         self.write(json.dumps(response))
+        path = self.request.path
+        host = self.request.host
+        req_info = {
+            "path": path,
+            "host": host,
+            "user": self.client_id,
+        }
+
+        for doc in flat_docs:
+            doc.update(req_info)
+            LOGGER.info(json.dumps(doc, cls=FullEncoder))
 
     def replace(self, obj):
         """ Find resource in request message and convert it
