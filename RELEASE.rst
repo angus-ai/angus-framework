@@ -2,6 +2,15 @@
 Angus Service Framework
 =======================
 
+Release Note 0.0.14
++++++++++++++++++++
+
+Features added
+--------------
+
+* Add possibility to log flat json documents coming from services in order to store/index them later on
+
+
 Release Note 0.0.13
 +++++++++++++++++++
 
