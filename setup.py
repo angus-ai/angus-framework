@@ -27,7 +27,7 @@ import os
 __updated__ = "2017-05-18"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2017, Angus.ai"
-__credits__ = ["Aurélien Moreau", "Gwennaël Gâté"]
+__credits__ = ["Aurélien Moreau", "Gwennaël Gâté", "Raphaël Lumbroso"]
 __status__ = "Production"
 
 setup(name='angus-framework',
