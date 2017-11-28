@@ -2,6 +2,15 @@
 Angus Service Framework
 =======================
 
+Release Note 0.0.15
++++++++++++++++++++
+
+Bug fixes
+--------------
+
+* Fix input stream. At end of stream, chunk data was not well parsed.
+
+
 Release Note 0.0.14
 +++++++++++++++++++
 
