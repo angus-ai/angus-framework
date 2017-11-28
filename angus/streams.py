@@ -79,7 +79,7 @@ class Decoder(object):
 
             buff = self.data[end+len(MARK_END+MARK_END):]
 
-            if len(self.data) > content_length:
+            if len(buff) > content_length:
                 self.data = buff
                 yield self._read_part(content_length, field, parameters)
                 yield self._wait_header()
