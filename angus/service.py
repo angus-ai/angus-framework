@@ -31,6 +31,31 @@ from angus.analytics import report
 import angus.jobs
 import angus.streams
 
+class FakeGatewayRoot(tornado.web.RequestHandler):
+    def initialize(self, *args, **kwargs):
+        self.service_key = kwargs.pop('service_key')
+
+    def get(self):
+        self.write({
+            "services": {
+                "honorata": {
+                    "url": "/services/{}".format(self.service_key)
+                }
+            }
+        })
+
+class FakeGatewayService(tornado.web.RequestHandler):
+    def initialize(self, *args, **kwargs):
+        self.service_key = kwargs.pop('service_key')
+        self.version = kwargs.pop('version')
+
+    def get(self):
+        self.write({
+            "versions": {
+                "1": {"url": "/services/{}/{}".format(self.service_key, self.version)}
+            }
+        })
+
 class Description(tornado.web.RequestHandler):
     """ Every services have a description endpoint.
     """
@@ -101,6 +126,8 @@ class Service(tornado.web.Application):
         basename = "/services/{}/{}".format(service_key, version)
 
         super(Service, self).__init__([
+            (r"/services", FakeGatewayRoot, conf),
+            (r"/services/{}".format(service_key), FakeGatewayService, conf),
             (r"{}/jobs/(.*)".format(basename), angus.jobs.Job, conf),
             (r"{}/jobs".format(basename), angus.jobs.JobCollection, conf),
             (r"{}/streams/(.*)/input".format(basename), angus.streams.Input, conf),
