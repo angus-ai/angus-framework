@@ -38,7 +38,7 @@ class FakeGatewayRoot(tornado.web.RequestHandler):
     def get(self):
         self.write({
             "services": {
-                "honorata": {
+                self.service_key: {
                     "url": "/services/{}".format(self.service_key)
                 }
             }
