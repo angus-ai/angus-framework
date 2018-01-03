@@ -35,7 +35,6 @@ import tornado.gen
 import tornado.httpclient
 import tornado.web
 
-from angus.analytics import report
 import angus.framework
 
 LOGGER = logging.getLogger(__name__)
@@ -102,7 +101,6 @@ class JobCollection(tornado.web.RequestHandler):
         self.compute = kwargs.pop('compute')
 
     @tornado.gen.coroutine
-    @report
     def post(self, *args, **kwargs):
         new_job_id = unicode(uuid.uuid1())
         self.client_id = angus.framework.extract_user(self)
@@ -248,7 +246,6 @@ class Job(tornado.web.RequestHandler):
     def initialize(self, *args, **kwargs):
         self.resource_storage = kwargs.pop('resource_storage')
 
-    @report
     def get(self, uid):
         user = angus.framework.extract_user(self)
         response = self.resource_storage.get(uid, user)

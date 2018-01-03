@@ -27,7 +27,6 @@ import logging
 import concurrent.futures
 import tornado.web
 
-from angus.analytics import report
 import angus.jobs
 import angus.streams
 
@@ -65,7 +64,6 @@ class Description(tornado.web.RequestHandler):
         self.version = kwargs.pop('version')
         self.service_key = kwargs.pop('service_key')
 
-    @report
     def get(self):
         public_url = "%s://%s" % (self.request.protocol, self.request.host)
         result = {
