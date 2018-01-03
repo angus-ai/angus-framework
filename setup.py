@@ -24,14 +24,14 @@
 from setuptools import setup, find_packages
 import os
 
-__updated__ = "2017-11-28"
+__updated__ = "2018-01-03"
 __author__ = "Aurélien Moreau"
 __copyright__ = "Copyright 2015-2017, Angus.ai"
 __credits__ = ["Aurélien Moreau", "Gwennaël Gâté", "Raphaël Lumbroso"]
 __status__ = "Production"
 
 setup(name='angus-framework',
-      version="0.0.15",
+      version="0.1.0",
       description='Angus Cloud Framework',
       author=__author__,
       author_email='aurelien.moreau@angus.ai',
