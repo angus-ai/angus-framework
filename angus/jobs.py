@@ -30,6 +30,7 @@ import uuid
 import datetime
 import pytz
 import logging
+import tempfile
 
 import tornado.gen
 import tornado.httpclient
@@ -71,7 +72,7 @@ class Resource(object):
         """ Resolve the resource
         """
         if self._path is None:
-            self._path = "/tmp/%s" % (self.uuid)
+            fd, self._path = tempfile.mkstemp()
             if self.content is None:
                 assert self.url is not None
                 client = tornado.httpclient.AsyncHTTPClient()
@@ -85,6 +86,8 @@ class Resource(object):
 
             with open(self._path, 'wb') as tmp_file:
                 tmp_file.write(self.content)
+
+            os.close(fd)
 
     def __del__(self):
         if self._path is not None:

@@ -31,7 +31,7 @@ __credits__ = ["Aurélien Moreau", "Gwennaël Gâté", "Raphaël Lumbroso"]
 __status__ = "Production"
 
 setup(name='angus-framework',
-      version="0.1.0",
+      version="0.1.1",
       description='Angus Cloud Framework',
       author=__author__,
       author_email='aurelien.moreau@angus.ai',
