@@ -78,6 +78,16 @@ class Description(tornado.web.RequestHandler):
 
         self.write(json.dumps(result))
 
+def wrap_computer(compute, threads):
+    if threads == 0:
+        return tornado.gen.coroutine(compute)
+
+    executor = concurrent.futures.ThreadPoolExecutor(threads)
+    @tornado.gen.coroutine
+    def wrap_compute(*args, **kwargs):
+        yield executor.submit(compute, *args, **kwargs)
+
+    return wrap_compute
 
 class Service(tornado.web.Application):
     """ Start a tornado server and configure it to run an angus
@@ -96,29 +106,11 @@ class Service(tornado.web.Application):
 
         self.queues = dict() # TODO: use celery
 
-        @tornado.gen.coroutine
-        def comp_thread(resource, data,
-                        executor=concurrent.futures.ThreadPoolExecutor(threads)):
-            """ This method compute job when we used many threads.
-            """
-            yield executor.submit(compute, resource, data)
-
-        @tornado.gen.coroutine
-        def comp_solo(resource, data):
-            """ This method compute a job when multithreading is off
-            """
-            compute(resource, data)
-
-        if threads == 0:
-            comp = comp_solo
-        else:
-            comp = comp_thread
-
         conf = {
             'service_key': service_key,
             'resource_storage': resource_storage,
-            'compute': comp,
             'version': version,
+            'compute': wrap_computer(compute, threads),
             'description': description,
             'streams': self.queues,
         }
@@ -134,6 +126,7 @@ class Service(tornado.web.Application):
             (r"{}/streams/(.*)/output".format(basename), angus.streams.Output, conf),
             (r"{}/streams/(.*)".format(basename), angus.streams.Stream, conf),
             (r"{}/streams".format(basename), angus.streams.Streams, conf),
+
             (r"{}".format(basename), Description, conf),
 
         ])

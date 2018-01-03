@@ -103,7 +103,7 @@ class JobCollection(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     @report
-    def post(self):
+    def post(self, *args, **kwargs):
         new_job_id = unicode(uuid.uuid1())
         self.client_id = angus.framework.extract_user(self)
 
@@ -145,12 +145,12 @@ class JobCollection(tornado.web.RequestHandler):
         if async:
             status = 202
             response['status'] = status
-            self._compute_result(response, data)
+            self._compute_result(response, data, *args, **kwargs)
             reason = "New job was accepted, keep in touch."
         else:
             status = 201
             response['status'] = status
-            yield self._compute_result(response, data)
+            yield self._compute_result(response, data, *args, **kwargs)
             reason = "New job was finished."
 
         self.set_status(status, reason)
@@ -230,13 +230,13 @@ class JobCollection(tornado.web.RequestHandler):
             yield obj.resolve(auth=auth)
 
     @tornado.gen.coroutine
-    def _compute_result(self, resource, data):
+    def _compute_result(self, resource, data, *args, **kwargs):
         """ Run the job, mark as done.
         """
         data = self.replace(data)
         auth = self.request.headers.get('Authorization', None)
         yield self.resolve(data, auth)
-        yield self.compute(resource, data)
+        yield self.compute(resource, data, *args, **kwargs)
         resource['status'] = 201
         self.resource_storage.update(resource['uuid'], resource)
         self.resource_storage.flush(resource['uuid'])
